@@ -72,6 +72,8 @@ textarea{width:100%;min-height:170px;font-family:var(--serif);font-size:19px;lin
 details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;padding:10px;border:1px dashed var(--line);border-radius:10px}
 .preview{border:1px solid var(--line);border-radius:12px;padding:22px 18px;text-align:center;background:var(--bg)}
 .preview p{font-family:var(--serif);font-size:20px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+#intro{width:100%;min-height:90px;font-family:var(--serif);font-size:17px;line-height:1.7;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);resize:vertical}
+.preview .sec{display:block}.preview .sec+.sec{margin-top:.6em}.preview .secLabel{display:block;font-family:inherit;font-size:12px;color:var(--ink2);letter-spacing:.1em}
 .preview span{display:block;margin-top:12px;color:var(--ink2);font-size:13px;letter-spacing:.12em}
 .status{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:14px;font-weight:700}
 .status.wait{background:var(--warn-soft);color:var(--warn)}.status.ng{background:var(--ng-soft);color:var(--ng)}
@@ -112,7 +114,12 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
       </div>
       <p class="photoNote" id="photoNote">メッセージの上に表示されます。写っている方の了承を得た写真をお選びください。撮影場所などの情報は消して送ります。</p>
     </div>
-    <div class="msgHead"><label class="label" for="text">メッセージ</label><button type="button" class="btn micBtn" id="micBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>音声入力</button></div>
+    <div id="introBox" hidden>
+      <label class="label" for="intro" id="introLabel">自己紹介（任意）</label>
+      <textarea id="intro" rows="3"></textarea>
+      <div class="count" id="introCount"></div>
+    </div>
+    <div class="msgHead"><label class="label" for="text" id="textLabel">メッセージ</label><button type="button" class="btn micBtn" id="micBtn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>音声入力</button></div>
     <textarea id="text" placeholder="感想や、やっていること、一緒にやってみたいことなどをお書きください"></textarea>
     <div class="count" id="count"></div>
     <div class="tools" id="tools" hidden>
@@ -199,7 +206,7 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     } finally { clearTimeout(timer); }
   }
 
-  let limit = 2000, capped = false, maxSec = 90, voice = false, askRel = false, rel = '', sending = null, before = null, fixRun = 0, voiced = false;
+  let introOn = false, introLabel = '自己紹介', textLabel = 'メッセージ', limit = 2000, capped = false, maxSec = 90, voice = false, askRel = false, rel = '', sending = null, before = null, fixRun = 0, voiced = false;
   const show = id => ['form','talk','confirm','done'].forEach(s => $(s).hidden = s !== id);
   const pick = r => { rel = r; [...$('rels').children].forEach(x => x.setAttribute('aria-pressed', String(x.textContent === r))); };
   const buildRels = list => {
@@ -215,7 +222,8 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
   // 区分を選ばない設定では、全員を区分の先頭（参加者）として送る
   const firstRel = () => askRel ? '' : RELATIONS[0] || '';
   // 書きかけはこの端末に残す（電波が切れて開き直しても消えない）。送ったら本文と区分を消す。屋号・お名前は次の一通のために残す。
-  const saveDraft = () => store.local(DRAFT, $('text').value || (askRel && rel) || $('name').value || $('shop').value ? JSON.stringify({text:$('text').value, relation:askRel ? rel : '', name:$('name').value, shop:$('shop').value, voiced}) : null);
+  const saveDraft = () => store.local(DRAFT, $('text').value || $('intro').value || (askRel && rel) || $('name').value || $('shop').value ? JSON.stringify({text:$('text').value, intro:$('intro').value, relation:askRel ? rel : '', name:$('name').value, shop:$('shop').value, voiced}) : null);
+  $('intro').addEventListener('input', () => { saveDraft(); validate(); });
   $('name').addEventListener('input', () => saveDraft()); $('shop').addEventListener('input', () => saveDraft());
 
   /* 写真（任意）：メッセージの上に表示される。選んだ写真は長い辺1280pxまでのJPEGに描き直して送る（撮影場所などの付随情報は残らない）。
@@ -348,7 +356,9 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     $('count').textContent = capped ? `${n} / ${limit}文字` : `${n}文字`; $('count').classList.toggle('over', n > limit);
     $('tools').hidden = !(voice && voiced);
     $('sum').hidden = n <= limit; if (!$('sum').disabled) $('sum').textContent = sumLabel();
-    $('review').disabled = !(rel && n > 0 && n <= limit);
+    const ni = introOn ? charLen(flat($('intro').value)) : 0;
+    $('introCount').textContent = capped ? `${ni} / ${limit}文字` : `${ni}文字`; $('introCount').classList.toggle('over', ni > limit);
+    $('review').disabled = !(rel && n > 0 && n <= limit && ni <= limit);
   }
   async function ask(btn, busy, label, request, done) {
     const box = $('text'), asked = box.value, id = ++fixRun;
@@ -373,11 +383,14 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
 
   /* 確認→送信。送信を始めたら同じIDで再送する（保存の応答が届かなくても1件のまま）。本人が確定した文だけを保存する。 */
   function confirmStep(post) {
-    sending = post; $('pvText').textContent = post.text; $('pvRel').textContent = '— ' + from(post) + ' —';
+    sending = post;
+    // 自己紹介（2つ目の欄）があれば、会場の画面と同じく欄の名前を小見出しにして2段で見せる
+    if (post.intro) { $('pvText').replaceChildren(...[[introLabel, post.intro], [textLabel, post.text]].map(([l, t]) => { const d = document.createElement('span'), s = document.createElement('small'); d.className = 'sec'; s.className = 'secLabel'; s.textContent = l; d.append(s, t); return d; })); }
+    else $('pvText').textContent = post.text; $('pvRel').textContent = '— ' + from(post) + ' —';
     $('pvPhoto').hidden = !post.photo; if (post.photo) $('pvPhoto').src = jpegUri(post.photo); else $('pvPhoto').removeAttribute('src');
     $('status').hidden = true; $('send').disabled = false; $('backEdit').disabled = false; show('confirm');
   }
-  $('review').addEventListener('click', () => confirmStep({id:newId(), kind:'general', relation:rel, shop:$('shop').value.trim(), name:$('name').value.trim(), text:flat($('text').value), hidden:false, sample:false, createdAt:Date.now(), ...(photoOn && photo ? {photo} : {})}));
+  $('review').addEventListener('click', () => confirmStep({id:newId(), kind:'general', relation:rel, shop:$('shop').value.trim(), name:$('name').value.trim(), text:flat($('text').value), ...(introOn && flat($('intro').value) ? {intro:flat($('intro').value)} : {}), hidden:false, sample:false, createdAt:Date.now(), ...(photoOn && photo ? {photo} : {})}));
   $('backEdit').addEventListener('click', () => { sending = null; show('form'); });
   $('send').addEventListener('click', async () => {
     const st = $('status'); $('send').disabled = true; $('backEdit').disabled = true; st.hidden = false; st.className = 'status wait'; st.textContent = '送っています…';
@@ -385,7 +398,7 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     try {
       const r = await call('addPost', {post:sending}, sending.photo ? 60000 : 20000);
       if (r.saved !== true || r.id !== sending.id) throw new Error('unconfirmed');
-      store.local(PENDING, null); sending = null; $('text').value = ''; pick(firstRel()); reset(); setPhoto(''); $('photoNote').textContent = PHOTO_NOTE; saveDraft(); awake(false); show('done');
+      store.local(PENDING, null); sending = null; $('text').value = ''; $('intro').value = ''; pick(firstRel()); reset(); setPhoto(''); $('photoNote').textContent = PHOTO_NOTE; saveDraft(); awake(false); show('done');
     } catch (e) {
       st.className = 'status ng'; $('send').disabled = false;
       // 写真だけ受け付けられないとき（受付の停止・上限・形式）は保存されていないので、同じIDのまま写真なしで送り直せる
@@ -428,9 +441,15 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     $('limitNote').textContent = capped ? `メッセージは${limit}文字以内です。長くなった場合は、あとで修正することができます。` : ''; $('limitNote').hidden = !capped;
     // 写真の欄はイベントの設定で受け付けるときだけ
     photoOn = cfg.photo !== false;
+    // 自由入力欄を2つにする設定（自己紹介＋メッセージ）。欄の名前もイベントの設定から
+    introOn = cfg.intro === true; $('introBox').hidden = !introOn;
+    if (typeof cfg.introLabel === 'string' && cfg.introLabel) introLabel = cfg.introLabel;
+    if (typeof cfg.textLabel === 'string' && cfg.textLabel) textLabel = cfg.textLabel;
+    $('introLabel').textContent = introLabel + '（任意）'; $('textLabel').textContent = textLabel;
+    if (introOn) $('text').placeholder = '';
     $('photoBox').hidden = !photoOn;
     if (photoOn) { const kept = store.local(PHOTO); if (kept && /^\/9j\/[A-Za-z0-9+/]+=*$/.test(kept)) setPhoto(kept, false); }
-    try { const d = JSON.parse(store.local(DRAFT) || 'null'); if (d) { $('text').value = d.text || ''; $('name').value = typeof d.name === 'string' ? d.name : ''; $('shop').value = typeof d.shop === 'string' ? d.shop : ''; voiced = d.voiced === true && !!$('text').value.trim(); if (askRel && RELATIONS.includes(d.relation)) pick(d.relation); } } catch (e) {}
+    try { const d = JSON.parse(store.local(DRAFT) || 'null'); if (d) { $('text').value = d.text || ''; $('intro').value = introOn && typeof d.intro === 'string' ? d.intro : ''; $('name').value = typeof d.name === 'string' ? d.name : ''; $('shop').value = typeof d.shop === 'string' ? d.shop : ''; voiced = d.voiced === true && !!$('text').value.trim(); if (askRel && RELATIONS.includes(d.relation)) pick(d.relation); } } catch (e) {}
     show('form'); validate();
     try {
       const old = JSON.parse(store.local(PENDING) || 'null');
