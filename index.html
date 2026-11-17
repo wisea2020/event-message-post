@@ -131,7 +131,7 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
 
   <div class="panel" id="talk" hidden>
     <h1>音声入力でメッセージを書く</h1>
-    <p class="note" id="limitNote">メッセージは100文字以内です。長くなった場合は、あとで修正することができます。</p>
+    <p class="note" id="limitNote" hidden></p>
     <ol class="steps"><li>緑のマイクを押すと録音が始まります</li><li>マイクが<b class="red">赤</b>の間は録音中です。お話しください</li><li>話し終えたら、赤いマイクをもう一度押します</li></ol>
     <div class="mic">
       <button type="button" class="vMic" id="vMic" aria-label="録音を始める"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
@@ -199,7 +199,7 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     } finally { clearTimeout(timer); }
   }
 
-  let limit = 100, maxSec = 90, voice = false, askRel = false, rel = '', sending = null, before = null, fixRun = 0, voiced = false;
+  let limit = 2000, capped = false, maxSec = 90, voice = false, askRel = false, rel = '', sending = null, before = null, fixRun = 0, voiced = false;
   const show = id => ['form','talk','confirm','done'].forEach(s => $(s).hidden = s !== id);
   const pick = r => { rel = r; [...$('rels').children].forEach(x => x.setAttribute('aria-pressed', String(x.textContent === r))); };
   const buildRels = list => {
@@ -345,7 +345,7 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
   function reset() { fixRun++; before = null; voiced = false; $('revert').hidden = true; $('orig').hidden = true; $('orig').open = false; [$('fix'), $('sum')].forEach(b => b.disabled = false); $('fix').textContent = '文章を修正'; $('msg').textContent = ''; validate(); }
   function validate() {
     const n = charLen(flat($('text').value));
-    $('count').textContent = `${n} / ${limit}文字`; $('count').classList.toggle('over', n > limit);
+    $('count').textContent = capped ? `${n} / ${limit}文字` : `${n}文字`; $('count').classList.toggle('over', n > limit);
     $('tools').hidden = !(voice && voiced);
     $('sum').hidden = n <= limit; if (!$('sum').disabled) $('sum').textContent = sumLabel();
     $('review').disabled = !(rel && n > 0 && n <= limit);
@@ -419,11 +419,13 @@ details{margin-top:8px;font-size:14px;color:var(--ink2)}details p{white-space:pr
     buildRels(Array.isArray(cfg.relations) && cfg.relations.length ? cfg.relations.filter(r => typeof r === 'string') : ['参加者','その他']);
     // 区分は管理画面で「投稿画面で区分を選んでもらう」にしたときだけ出す
     askRel = cfg.askRelation === true; $('relBox').hidden = !askRel; pick(firstRel());
-    limit = Number(feed.settings && feed.settings.limit) || 100;
+    // 上限 0（または未設定）は「制限なし」。そのときもGASと同じ2000文字までにする
+    const setLimit = Number(feed.settings && feed.settings.limit);
+    capped = Number.isInteger(setLimit) && setLimit > 0; limit = capped ? setLimit : 2000;
     maxSec = Math.min(180, Math.max(20, Number(feed.capabilities && feed.capabilities.voiceSeconds) || 90));
     voice = !!(feed.capabilities && feed.capabilities.voice) && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof MediaRecorder !== 'undefined';
     $('micBtn').hidden = !voice;
-    $('limitNote').textContent = `メッセージは${limit}文字以内です。長くなった場合は、あとで修正することができます。`;
+    $('limitNote').textContent = capped ? `メッセージは${limit}文字以内です。長くなった場合は、あとで修正することができます。` : ''; $('limitNote').hidden = !capped;
     // 写真の欄はイベントの設定で受け付けるときだけ
     photoOn = cfg.photo !== false;
     $('photoBox').hidden = !photoOn;
